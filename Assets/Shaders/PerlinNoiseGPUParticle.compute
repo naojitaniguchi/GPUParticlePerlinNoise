@@ -1,0 +1,123 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSCalcVelocity
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float4> Result;
+Texture2D<float3> NoiseTexture;
+Texture2D<float3> NoiseTexture1;
+Texture2D<float4> Velocity;
+Texture2D<float4> Position;
+float ScreenWidth ;
+float ScreenHeight ;
+float posTexWidth ;
+float posTexHeight ;
+float deltaTime ;
+float speed ;
+float spread ;
+
+[numthreads(8,8,1)]
+void CSCalcVelocity (uint3 id : SV_DispatchThreadID)
+{
+//
+//	0
+//  
+
+	float2 v ;
+	float3 n = NoiseTexture[id.xy] ;
+	float angle = n.x * spread ;
+	float c = cos( angle * 3.14 );
+	float s = sin( angle * 3.14 );
+
+	v.x = c ;
+	v.y = s ;
+
+    Result[id.xy] = float4(v.x, v.y, 0.0, 0.0);
+}
+
+#pragma kernel CSClearWhite
+
+[numthreads(8,8,1)]
+void CSClearWhite (uint3 id : SV_DispatchThreadID)
+{
+//
+//	1
+//  
+    Result[id.xy] = float4(1.0, 1.0, 1.0, 0.0);
+}
+
+#pragma kernel CSInitPosition
+
+[numthreads(8,8,1)]
+void CSInitPosition (uint3 id : SV_DispatchThreadID)
+{
+//
+//	2
+//  
+	float x = (float)id.x / posTexWidth ;
+	float y = (float)id.y / posTexHeight ;
+	
+    Result[id.xy] = float4(x, y, 0, 0);
+}
+
+#pragma kernel CSCalcPosition
+
+[numthreads(8,8,1)]
+void CSCalcPosition (uint3 id : SV_DispatchThreadID)
+{
+//
+//	3
+//
+	float4 pos = Position[id.xy] ;
+
+	float2 indexF ;
+	indexF.x = pos.x * posTexWidth ;
+	indexF.y = pos.y * posTexHeight ;
+
+	uint3 index ;
+	index.x = (uint)indexF.x ;
+	index.y = (uint)indexF.y ;
+
+	float4 v = Velocity[index.xy] ;
+		
+	pos.xy += v.xy * speed ;
+	if ( pos.x > 1.0 ){
+		pos.x = 0 ;
+	}else if ( pos.x < 0 ){
+		pos.x = 1.0 ;
+	}
+
+	if ( pos.y > 1.0 ){
+		pos.y = 0 ;
+	}else if ( pos.y < 0 ){
+		pos.y = 1.0 ;
+	}
+    
+    Result[id.xy] = float4(pos.x, pos.y, 0.0, 0.0);
+}
+
+#pragma kernel CSDrawParticle
+
+[numthreads(8,8,1)]
+void CSDrawParticle (uint3 id : SV_DispatchThreadID)
+{
+//
+//	3
+//  
+    float4 pos = Position[id.xy];
+
+	float2 indexF ;
+	indexF.x = pos.x * ScreenWidth ;
+	indexF.y = pos.y * ScreenHeight ;
+	
+	if ( indexF.x >= 0 && indexF.x < (int)ScreenWidth ){
+		if ( indexF.y >= 0 && indexF.y < ScreenHeight ){
+			uint3 index ;
+			index.x = (uint)indexF.x ;
+			index.y = (uint)indexF.y ;
+
+  			 Result[index.xy] = float4(0.0, 0.0, 0.0, 1.0);
+  		}
+  	}
+
+}
